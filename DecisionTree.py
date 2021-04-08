@@ -12,6 +12,13 @@ def GINI_impurity(y1_count: int, y2_count: int) -> float:
     """
     Given the observations of a binary class calculate the GINI impurity
     """
+    # Ensuring the correct types
+    if y1_count is None:
+        y1_count = 0
+
+    if y2_count is None:
+        y2_count = 0
+
     # Getting the total observations
     n = y1_count + y2_count
     
@@ -36,9 +43,15 @@ class Node:
     """
     def __init__(
         self, 
-        Y: list 
+        Y: list,
+        X: pd.DataFrame
     ):
+        # Saving the data to the node 
         self.Y = Y 
+        self.X = X
+
+        # Extracting all the features
+        self.features = list(self.X.columns)
 
         # Calculating the counts of Y in the node 
         self.counts = Counter(Y)
@@ -60,6 +73,10 @@ class Node:
         # Saving the number of observations in the node 
         self.n = len(Y)
 
+        # Initiating the left and right nodes as empty nodes
+        self.left = None 
+        self.right = None 
+
     def get_GINI(self):
         """
         Function to calculate the GINI impurity of a node 
@@ -70,50 +87,29 @@ class Node:
         # Getting the GINI impurity
         return GINI_impurity(y1_count, y2_count)
 
-
-
-class DecisionTree:
-    
-    def __init__(
-        self, 
-        max_depth: int,
-        min_node_obs: int 
-        ):
-        # Defining the maximum depth a tree can grow
-        self.max_depth = max_depth
-
-        # Definining the min number of observations in each node for a split to commence 
-        self.min_node_obs = min_node_obs
-        
-        # When initializing the object, set the depth to 0 
-        self.depth = 0 
-
-    def best_split(self, X: pd.DataFrame, Y: list) -> tuple:
+    def best_split(self) -> tuple:
         """
         Given the X features and Y targets calculates the best split 
         for a decision tree
         """
         # Creating a dataset for spliting
-        df = X.copy()
-        df['Y'] = Y
-
-        # Extracting all the features
-        features = list(X.columns)
+        df = self.X.copy()
+        df['Y'] = self.Y
 
         # Getting the GINI impurity for the base input 
-        counts = Counter(Y)
+        counts = Counter(self.Y)
         GINI_base = GINI_impurity(counts.get(0), counts.get(1))
 
         # Finding which split yields the best GINI gain 
         max_gain = 0
 
         # Default best feature and split
-        best_feature = features[0]
-        best_value = 0
+        best_feature = None
+        best_value = None
 
-        for feature in features:
+        for feature in self.features:
             # Droping missing values
-            Xvalues = X[feature].dropna()
+            Xvalues = self.X[feature].dropna()
 
             # Sorting the values and getting the rolling average
             Xvalues = Xvalues.sort_values().rolling(2).mean()
@@ -130,8 +126,8 @@ class DecisionTree:
                 right_df = df[df[feature]>=value]
 
                 # Creating the two nodes 
-                left_node = Node(left_df['Y'].values.tolist())
-                right_node = Node(right_df['Y'].values.tolist())
+                left_node = Node(left_df['Y'].values.tolist(), left_df[self.features])
+                right_node = Node(right_df['Y'].values.tolist(), right_df[self.features])
 
                 # Calculating the weights for each of the nodes
                 w_left = left_node.n / (left_node.n + right_node.n)
@@ -153,20 +149,51 @@ class DecisionTree:
 
         return (best_feature, best_value)
 
+    def split_node(self):
+        """
+        Recursive method to create the decision tree
+        """
+        # Making a df from the data 
+        df = self.X.copy()
+        df['Y'] = self.Y
+
+        # Getting the best split 
+        best_feature, best_value = self.best_split()
+
+        # If there is GINI to be gained, we split further 
+        if best_feature is not None:
+            # Getting the left and right nodes
+            left_df, right_df = df[df[best_feature]<best_value].copy(), df[df[best_feature]>=best_value].copy()
+
+            # Creating the left and right nodes
+            left = Node(left_df['Y'].values.tolist(), left_df[self.features])
+            right = Node(right_df['Y'].values.tolist(), right_df[self.features])
+
+            # Saving the left and right nodes to the current node 
+            self.left = left 
+            self.right = right
+
+            # Spliting the left and right nodes further 
+            self.left.split_node()
+            self.right.split_node
 
 
 if __name__ == '__main__':
     # Reading data
-    d = pd.read_csv("data/train.csv")
+    d = pd.read_csv("data/train.csv")[['Age', 'Fare', 'Survived']].dropna()
 
     # Constructing the X and Y matrices
     X = d[['Age', 'Fare']]
     Y = d['Survived'].values.tolist()
 
+    # Initiating the Node
+    root = Node(Y, X)
+
+    # Getting teh best split
+    root.split_node()
+
     # Creating the node object 
-    DT = DecisionTree(max_depth=2, min_node_obs=5)
+    #DT = DecisionTree(max_depth=2, min_node_obs=5)
 
     # Gettting the best split
-    (feature, split) = DT.best_split(X, Y)
-
-    print((feature, split))
+    #(feature, split) = DT.best_split(X, Y)
