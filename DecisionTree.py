@@ -8,35 +8,6 @@ import numpy as np
 from collections import Counter
 
 
-def GINI_impurity(y1_count: int, y2_count: int) -> float:
-    """
-    Given the observations of a binary class calculate the GINI impurity
-    """
-    # Ensuring the correct types
-    if y1_count is None:
-        y1_count = 0
-
-    if y2_count is None:
-        y2_count = 0
-
-    # Getting the total observations
-    n = y1_count + y2_count
-    
-    # If n is 0 then we return the lowest possible gini impurity
-    if n == 0:
-        return 0.0
-
-    # Getting the probability to see each of the classes
-    p1 = y1_count / n
-    p2 = y2_count / n
-    
-    # Calculating GINI 
-    gini = 1 - (p1 ** 2 + p2 ** 2)
-    
-    # Returning the gini impurity
-    return gini
-
-
 class Node: 
     """
     Class for creating the nodes for a decision tree 
@@ -44,11 +15,21 @@ class Node:
     def __init__(
         self, 
         Y: list,
-        X: pd.DataFrame
+        X: pd.DataFrame,
+        min_obs_child=None,
+        max_depth=None,
+        depth=None
     ):
         # Saving the data to the node 
         self.Y = Y 
         self.X = X
+
+        # Saving the hyper parameters
+        self.min_obs_child = min_obs_child if min_obs_child else 20
+        self.max_depth = max_depth if max_depth else 5
+
+        # Default current depth of node 
+        self.depth = depth if depth else 0
 
         # Extracting all the features
         self.features = list(self.X.columns)
@@ -77,6 +58,35 @@ class Node:
         self.left = None 
         self.right = None 
 
+    @staticmethod
+    def GINI_impurity(y1_count: int, y2_count: int) -> float:
+        """
+        Given the observations of a binary class calculate the GINI impurity
+        """
+        # Ensuring the correct types
+        if y1_count is None:
+            y1_count = 0
+
+        if y2_count is None:
+            y2_count = 0
+
+        # Getting the total observations
+        n = y1_count + y2_count
+        
+        # If n is 0 then we return the lowest possible gini impurity
+        if n == 0:
+            return 0.0
+
+        # Getting the probability to see each of the classes
+        p1 = y1_count / n
+        p2 = y2_count / n
+        
+        # Calculating GINI 
+        gini = 1 - (p1 ** 2 + p2 ** 2)
+        
+        # Returning the gini impurity
+        return gini
+
     def get_GINI(self):
         """
         Function to calculate the GINI impurity of a node 
@@ -85,7 +95,7 @@ class Node:
         y1_count, y2_count = self.counts.get(0, 0), self.counts.get(1, 0)
 
         # Getting the GINI impurity
-        return GINI_impurity(y1_count, y2_count)
+        return self.GINI_impurity(y1_count, y2_count)
 
     def best_split(self) -> tuple:
         """
@@ -97,9 +107,7 @@ class Node:
         df['Y'] = self.Y
 
         # Getting the GINI impurity for the base input 
-        counts = Counter(self.Y)
-        GINI_base = GINI_impurity(counts.get(0), counts.get(1))
-
+        GINI_base = self.get_GINI()
         # Finding which split yields the best GINI gain 
         max_gain = 0
 
@@ -149,7 +157,7 @@ class Node:
 
         return (best_feature, best_value)
 
-    def split_node(self):
+    def grow_tree(self):
         """
         Recursive method to create the decision tree
         """
@@ -157,25 +165,32 @@ class Node:
         df = self.X.copy()
         df['Y'] = self.Y
 
-        # Getting the best split 
-        best_feature, best_value = self.best_split()
-
         # If there is GINI to be gained, we split further 
-        if best_feature is not None:
-            # Getting the left and right nodes
-            left_df, right_df = df[df[best_feature]<best_value].copy(), df[df[best_feature]>=best_value].copy()
+        if (self.n >= self.min_obs_child) and (self.depth <= self.max_depth):
+            
+            # Getting the best split 
+            best_feature, best_value = self.best_split()
 
-            # Creating the left and right nodes
-            left = Node(left_df['Y'].values.tolist(), left_df[self.features])
-            right = Node(right_df['Y'].values.tolist(), right_df[self.features])
+            print(best_feature)
+            print(best_value)
+            print(self.depth)
 
-            # Saving the left and right nodes to the current node 
-            self.left = left 
-            self.right = right
+            if best_feature is not None:
 
-            # Spliting the left and right nodes further 
-            self.left.split_node()
-            self.right.split_node
+                # Getting the left and right nodes
+                left_df, right_df = df[df[best_feature]<best_value].copy(), df[df[best_feature]>=best_value].copy()
+
+                # Creating the left and right nodes
+                left = Node(left_df['Y'].values.tolist(), left_df[self.features], depth=self.depth + 1, max_depth=self.max_depth, min_obs_child=self.min_obs_child)
+                right = Node(right_df['Y'].values.tolist(), right_df[self.features], depth=self.depth + 1, max_depth=self.max_depth, min_obs_child=self.min_obs_child)
+
+                # Saving the left and right nodes to the current node 
+                self.left = left 
+                self.right = right
+
+                # Spliting the left and right nodes further 
+                self.left.grow_tree()
+                self.right.grow_tree()
 
 
 if __name__ == '__main__':
@@ -187,10 +202,10 @@ if __name__ == '__main__':
     Y = d['Survived'].values.tolist()
 
     # Initiating the Node
-    root = Node(Y, X)
+    root = Node(Y, X, max_depth=3)
 
     # Getting teh best split
-    root.split_node()
+    root.grow_tree()
 
     # Creating the node object 
     #DT = DecisionTree(max_depth=2, min_node_obs=5)
