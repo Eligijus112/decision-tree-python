@@ -58,6 +58,10 @@ class Node:
         self.left = None 
         self.right = None 
 
+        # Default values for splits
+        self.best_feature = None 
+        self.best_value = None 
+
     @staticmethod
     def GINI_impurity(y1_count: int, y2_count: int) -> float:
         """
@@ -108,6 +112,7 @@ class Node:
 
         # Getting the GINI impurity for the base input 
         GINI_base = self.get_GINI()
+
         # Finding which split yields the best GINI gain 
         max_gain = 0
 
@@ -166,16 +171,15 @@ class Node:
         df['Y'] = self.Y
 
         # If there is GINI to be gained, we split further 
-        if (self.n >= self.min_obs_child) and (self.depth <= self.max_depth):
-            
+        if (self.n >= self.min_obs_child) and (self.depth < self.max_depth):
+
             # Getting the best split 
             best_feature, best_value = self.best_split()
 
-            print(best_feature)
-            print(best_value)
-            print(self.depth)
-
             if best_feature is not None:
+                # Saving the best split to the current node 
+                self.best_feature = best_feature
+                self.best_value = best_value
 
                 # Getting the left and right nodes
                 left_df, right_df = df[df[best_feature]<best_value].copy(), df[df[best_feature]>=best_value].copy()
@@ -192,6 +196,27 @@ class Node:
                 self.left.grow_tree()
                 self.right.grow_tree()
 
+    def print_info(self):
+        """
+        Method to print the infromation about the tree
+        """
+        print(f"-------")
+        print(f"Depth of the node: {self.depth}")
+        print(f"GINI impurity of the node: {self.gini_impurity}")
+        print(f"Class distribution in the node: {self.counts}")
+        print(f"Feature to split on: {self.best_feature}")
+        print(f"Feature value to split on: {self.best_value}")
+        print(f"-------")
+
+    def print_tree(self):
+        self.print_info() 
+        
+        if self.left is not None: 
+            self.left.print_tree()
+        
+        if self.right is not None:
+            self.right.print_tree()
+
 
 if __name__ == '__main__':
     # Reading data
@@ -206,6 +231,9 @@ if __name__ == '__main__':
 
     # Getting teh best split
     root.grow_tree()
+
+    # Printing the tree information 
+    root.print_tree()
 
     # Creating the node object 
     #DT = DecisionTree(max_depth=2, min_node_obs=5)
