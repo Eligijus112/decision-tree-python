@@ -99,6 +99,13 @@ class Node:
         # Returning the gini impurity
         return gini
 
+    @staticmethod
+    def ma(x: np.array, window: int) -> np.array:
+        """
+        Calculates the moving average of the given list. 
+        """
+        return np.convolve(x, np.ones(window), 'valid') / window
+
     def get_GINI(self):
         """
         Function to calculate the GINI impurity of a node 
@@ -130,32 +137,33 @@ class Node:
 
         for feature in self.features:
             # Droping missing values
-            Xvalues = self.X[feature].dropna()
+            Xdf = df.dropna().sort_values(feature)
 
             # Sorting the values and getting the rolling average
-            Xvalues = Xvalues.sort_values().rolling(2).mean()
+            xmeans = self.ma(Xdf[feature].unique(), 2)
 
-            # Converting to list
-            Xvalues = Xvalues.values.tolist()
-            
-            # Droping the initial NaN value 
-            Xvalues.pop(0)
-
-            for value in Xvalues:
+            for value in xmeans:
                 # Spliting the dataset 
-                left_df = df[df[feature]<value]
-                right_df = df[df[feature]>=value]
+                left_counts = Counter(Xdf[Xdf[feature]<value]['Y'])
+                right_counts = Counter(Xdf[Xdf[feature]>=value]['Y'])
 
-                # Creating the two nodes 
-                left_node = Node(left_df['Y'].values.tolist(), left_df[self.features])
-                right_node = Node(right_df['Y'].values.tolist(), right_df[self.features])
+                # Getting the Y distribution from the dicts
+                y0_left, y1_left, y0_right, y1_right = left_counts.get(0, 0), left_counts.get(1, 0), right_counts.get(0, 0), right_counts.get(1, 0)
+
+                # Getting the left and right gini impurities
+                gini_left = self.GINI_impurity(y0_left, y1_left)
+                gini_right = self.GINI_impurity(y0_right, y1_right)
+
+                # Getting the obs count from the left and the right data splits
+                n_left = y0_left + y1_left
+                n_right = y0_right + y1_right
 
                 # Calculating the weights for each of the nodes
-                w_left = left_node.n / (left_node.n + right_node.n)
-                w_right = right_node.n / (left_node.n + right_node.n)
+                w_left = n_left / (n_left + n_right)
+                w_right = n_right / (n_left + n_right)
 
                 # Calculating the weighted GINI impurity
-                wGINI = w_left * left_node.gini_impurity + w_right * right_node.gini_impurity
+                wGINI = w_left * gini_left + w_right * gini_right
 
                 # Calculating the GINI gain 
                 GINIgain = GINI_base - wGINI
@@ -227,7 +235,10 @@ class Node:
         const = int(self.depth * width ** 1.5)
         spaces = "-" * const
         
-        print(f"|{spaces} Split rule: {self.rule}")
+        if self.node_type == 'root':
+            print("Root")
+        else:
+            print(f"|{spaces} Split rule: {self.rule}")
         print(f"{' ' * const}   | GINI impurity of the node: {round(self.gini_impurity, 2)}")
         print(f"{' ' * const}   | Class distribution in the node: {dict(self.counts)}")
         print(f"{' ' * const}   | Predicted class: {self.yhat}")   
@@ -281,8 +292,6 @@ class Node:
             
         return cur_node.yhat
         
-
-
 if __name__ == '__main__':
     # Reading data
     d = pd.read_csv("data/train.csv")[['Age', 'Fare', 'Survived']].dropna()

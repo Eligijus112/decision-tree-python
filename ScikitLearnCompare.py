@@ -16,7 +16,7 @@ Y = d['Survived'].values.tolist()
 
 # Constructing the parameter dict
 hp = {
-    'max_depth': 3,
+    'max_depth': 4,
     'min_samples_split': 50
 }
 
