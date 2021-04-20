@@ -8,9 +8,9 @@ import numpy as np
 from collections import Counter
 
 
-class Node: 
+class NodeRegression():
     """
-    Class for creating the nodes for a decision tree 
+    Class to grow a regression decision tree
     """
     def __init__(
         self, 
@@ -42,22 +42,11 @@ class Node:
         # Rule for spliting 
         self.rule = rule if rule else ""
 
-        # Calculating the counts of Y in the node 
-        self.counts = Counter(Y)
+        # Getting the mean of Y 
+        self.ymean = np.mean(Y)
 
-        # Getting the GINI impurity based on the Y distribution
-        self.gini_impurity = self.get_GINI()
-
-        # Sorting the counts and saving the final prediction of the node 
-        counts_sorted = list(sorted(self.counts.items(), key=lambda item: item[1]))
-
-        # Getting the last item
-        yhat = None
-        if len(counts_sorted) > 0:
-            yhat = counts_sorted[-1][0]
-
-        # Saving to object attribute. This node will predict the class with the most frequent class
-        self.yhat = yhat 
+        # Calculating the mse of the node 
+        self.mse = self.get_mse(Y, self.ymean)
 
         # Saving the number of observations in the node 
         self.n = len(Y)
@@ -71,33 +60,24 @@ class Node:
         self.best_value = None 
 
     @staticmethod
-    def GINI_impurity(y1_count: int, y2_count: int) -> float:
+    def get_mse(ytrue, yhat) -> float:
         """
-        Given the observations of a binary class calculate the GINI impurity
+        Method to calculate the mean squared error 
         """
-        # Ensuring the correct types
-        if y1_count is None:
-            y1_count = 0
+        # Getting the total number of samples
+        n = len(ytrue)
 
-        if y2_count is None:
-            y2_count = 0
+        # Getting the residuals 
+        r = ytrue - yhat 
 
-        # Getting the total observations
-        n = y1_count + y2_count
-        
-        # If n is 0 then we return the lowest possible gini impurity
-        if n == 0:
-            return 0.0
+        # Squering the residuals 
+        r = r ** 2
 
-        # Getting the probability to see each of the classes
-        p1 = y1_count / n
-        p2 = y2_count / n
-        
-        # Calculating GINI 
-        gini = 1 - (p1 ** 2 + p2 ** 2)
-        
-        # Returning the gini impurity
-        return gini
+        # Suming 
+        r = np.sum(r)
+
+        # Getting the average and returning 
+        return r / n
 
     @staticmethod
     def ma(x: np.array, window: int) -> np.array:
@@ -105,16 +85,6 @@ class Node:
         Calculates the moving average of the given list. 
         """
         return np.convolve(x, np.ones(window), 'valid') / window
-
-    def get_GINI(self):
-        """
-        Function to calculate the GINI impurity of a node 
-        """
-        # Getting the 0 and 1 counts
-        y1_count, y2_count = self.counts.get(0, 0), self.counts.get(1, 0)
-
-        # Getting the GINI impurity
-        return self.GINI_impurity(y1_count, y2_count)
 
     def best_split(self) -> tuple:
         """
@@ -126,7 +96,7 @@ class Node:
         df['Y'] = self.Y
 
         # Getting the GINI impurity for the base input 
-        GINI_base = self.get_GINI()
+        mse_base = self.mse
 
         # Finding which split yields the best GINI gain 
         max_gain = 0
@@ -143,38 +113,39 @@ class Node:
             xmeans = self.ma(Xdf[feature].unique(), 2)
 
             for value in xmeans:
-                # Spliting the dataset 
-                left_counts = Counter(Xdf[Xdf[feature]<value]['Y'])
-                right_counts = Counter(Xdf[Xdf[feature]>=value]['Y'])
+                # Getting the left and right ys 
+                left_y = Xdf[Xdf[feature]<value]['Y'].values
+                right_y = Xdf[Xdf[feature]>=value]['Y'].values
 
-                # Getting the Y distribution from the dicts
-                y0_left, y1_left, y0_right, y1_right = left_counts.get(0, 0), left_counts.get(1, 0), right_counts.get(0, 0), right_counts.get(1, 0)
+                # Getting the means 
+                left_mean = np.mean(left_y)
+                right_mean = np.mean(right_y)
 
-                # Getting the left and right gini impurities
-                gini_left = self.GINI_impurity(y0_left, y1_left)
-                gini_right = self.GINI_impurity(y0_right, y1_right)
+                # Getting the left and right mses 
+                left_mse = self.get_mse(left_y, left_mean)
+                right_mse = self.get_mse(right_y, right_mean)
 
                 # Getting the obs count from the left and the right data splits
-                n_left = y0_left + y1_left
-                n_right = y0_right + y1_right
+                n_left = len(left_y)
+                n_right = len(right_y)
 
                 # Calculating the weights for each of the nodes
                 w_left = n_left / (n_left + n_right)
                 w_right = n_right / (n_left + n_right)
 
-                # Calculating the weighted GINI impurity
-                wGINI = w_left * gini_left + w_right * gini_right
+                # Calculating the weighted mse
+                wmse = w_left * left_mse + w_right * right_mse
 
-                # Calculating the GINI gain 
-                GINIgain = GINI_base - wGINI
+                # Calculating the mse gain 
+                msegain = mse_base - wmse
 
                 # Checking if this is the best split so far 
-                if GINIgain > max_gain:
+                if msegain > max_gain:
                     best_feature = feature
                     best_value = value 
 
                     # Setting the best gain to the current one 
-                    max_gain = GINIgain
+                    max_gain = msegain
 
         return (best_feature, best_value)
 
@@ -201,7 +172,7 @@ class Node:
                 left_df, right_df = df[df[best_feature]<=best_value].copy(), df[df[best_feature]>best_value].copy()
 
                 # Creating the left and right nodes
-                left = Node(
+                left = NodeRegression(
                     left_df['Y'].values.tolist(), 
                     left_df[self.features], 
                     depth=self.depth + 1, 
@@ -214,7 +185,7 @@ class Node:
                 self.left = left 
                 self.left.grow_tree()
 
-                right = Node(
+                right = NodeRegression(
                     right_df['Y'].values.tolist(), 
                     right_df[self.features], 
                     depth=self.depth + 1, 
@@ -239,9 +210,9 @@ class Node:
             print("Root")
         else:
             print(f"|{spaces} Split rule: {self.rule}")
-        print(f"{' ' * const}   | GINI impurity of the node: {round(self.gini_impurity, 2)}")
-        print(f"{' ' * const}   | Class distribution in the node: {dict(self.counts)}")
-        print(f"{' ' * const}   | Predicted class: {self.yhat}")   
+        print(f"{' ' * const}   | MSE of the node: {round(self.mse, 2)}")
+        print(f"{' ' * const}   | Count of observations in node: {self.n}")
+        print(f"{' ' * const}   | Prediction of node: {self.ymean}")   
 
     def print_tree(self):
         """
@@ -255,61 +226,19 @@ class Node:
         if self.right is not None:
             self.right.print_tree()
 
-    def predict(self, X:pd.DataFrame):
-        """
-        Batch prediction method
-        """
-        predictions = []
-
-        for _, x in X.iterrows():
-            values = {}
-            for feature in self.features:
-                values.update({feature: x[feature]})
-        
-            predictions.append(self.predict_obs(values))
-        
-        return predictions
-
-    def predict_obs(self, values: dict) -> int:
-        """
-        Method to predict the class given a set of features
-        """
-        cur_node = self
-        while cur_node.depth < cur_node.max_depth:
-            # Traversing the nodes all the way to the bottom
-            best_feature = cur_node.best_feature
-            best_value = cur_node.best_value
-
-            if cur_node.n < cur_node.min_samples_split:
-                break 
-
-            if (values.get(best_feature) < best_value):
-                if self.left is not None:
-                    cur_node = cur_node.left
-            else:
-                if self.right is not None:
-                    cur_node = cur_node.right
-            
-        return cur_node.yhat
-        
 if __name__ == '__main__':
     # Reading data
-    d = pd.read_csv("data/classification/train.csv")[['Age', 'Fare', 'Survived']].dropna()
+    d = pd.read_csv("data/regression/50_startups.csv")
 
     # Constructing the X and Y matrices
-    X = d[['Age', 'Fare']]
-    Y = d['Survived'].values.tolist()
+    X = d[['R&D Spend', 'Administration', 'Marketing Spend']]
+    Y = d['Profit'].values.tolist()
 
     # Initiating the Node
-    root = Node(Y, X, max_depth=3, min_samples_split=100)
+    root = NodeRegression(Y, X, max_depth=3, min_samples_split=3)
 
-    # Getting teh best split
+    # Growing the tree
     root.grow_tree()
 
-    # Printing the tree information 
+    # Printing tree 
     root.print_tree()
-
-    # Predicting 
-    Xsubset = X.copy()
-    Xsubset['yhat'] = root.predict(Xsubset)
-    print(Xsubset)

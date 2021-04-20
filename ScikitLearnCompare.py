@@ -1,14 +1,17 @@
 # Importing the ML package
-from sklearn.tree import DecisionTreeClassifier, export_text 
+from sklearn.tree import DecisionTreeClassifier, export_text, DecisionTreeRegressor 
 
 # Importing the custom created class 
 from DecisionTree import Node 
+ 
+# Importing the custom regression tree
+from RegressionDecisionTree import NodeRegression
 
 # Data reading 
 import pandas as pd  
 
 # Reading the data 
-d = pd.read_csv("data/train.csv")[['Age', 'Fare', 'Survived']].dropna()
+d = pd.read_csv("data/classification/train.csv")[['Age', 'Fare', 'Survived']].dropna()
 
 # Constructing the X and Y matrices
 X = d[['Age', 'Fare']]
@@ -26,9 +29,6 @@ root = Node(Y, X, **hp)
 # Getting teh best split
 root.grow_tree()
 
-# Printing the tree information 
-root.print_tree()
-
 # Using the ML package 
 clf = DecisionTreeClassifier(**hp)
 clf.fit(X, Y)
@@ -45,3 +45,31 @@ X['custom_yhat'] = root.predict(X[['Age', 'Fare']])
 np.all(X['scikit_learn'] == X['custom_yhat'])
 
 print(X[X['scikit_learn'] != X['custom_yhat']])
+
+# Trying out regression 
+# Reading the data 
+d = pd.read_csv("data/regression/50_startups.csv")
+
+# Constructing the X and Y matrices
+X = d[['R&D Spend', 'Administration', 'Marketing Spend']]
+Y = d['Profit'].values.tolist()
+
+# Constructing the parameter dict
+hp = {
+    'max_depth': 3,
+    'min_samples_split': 10
+}
+
+# Initiating the Node
+root = NodeRegression(Y, X, **hp)
+
+# Getting teh best split
+root.grow_tree()
+
+# Using the ML package 
+clf = DecisionTreeRegressor(**hp)
+clf.fit(X, Y)
+
+# Printing out the trees 
+root.print_tree()
+print(export_text(clf, feature_names=X.columns.values.tolist()))
