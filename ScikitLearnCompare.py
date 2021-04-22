@@ -48,15 +48,23 @@ print(X[X['scikit_learn'] != X['custom_yhat']])
 
 # Trying out regression 
 # Reading the data 
-d = pd.read_csv("data/regression/50_startups.csv")
+d = pd.read_csv("data/regression/auto-mpg.csv")
+
+# Subsetting
+d = d[d['horsepower']!='?']
 
 # Constructing the X and Y matrices
-X = d[['R&D Spend', 'Administration', 'Marketing Spend']]
-Y = d['Profit'].values.tolist()
+features = ['horsepower', 'weight', 'acceleration']
+
+for ft in features:
+    d[ft] = pd.to_numeric(d[ft])
+
+X = d[features]
+Y = d['mpg'].values.tolist()
 
 # Constructing the parameter dict
 hp = {
-    'max_depth': 3,
+    'max_depth': 4,
     'min_samples_split': 10
 }
 

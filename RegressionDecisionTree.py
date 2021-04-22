@@ -45,6 +45,9 @@ class NodeRegression():
         # Getting the mean of Y 
         self.ymean = np.mean(Y)
 
+        # Getting the residuals 
+        self.residuals = self.Y - self.ymean
+
         # Calculating the mse of the node 
         self.mse = self.get_mse(Y, self.ymean)
 
@@ -99,7 +102,7 @@ class NodeRegression():
         mse_base = self.mse
 
         # Finding which split yields the best GINI gain 
-        max_gain = 0
+        #max_gain = 0
 
         # Default best feature and split
         best_feature = None
@@ -121,31 +124,26 @@ class NodeRegression():
                 left_mean = np.mean(left_y)
                 right_mean = np.mean(right_y)
 
-                # Getting the left and right mses 
-                left_mse = self.get_mse(left_y, left_mean)
-                right_mse = self.get_mse(right_y, right_mean)
+                # Getting the left and right residuals 
+                res_left = left_y - left_mean 
+                res_right = right_y - right_mean
 
-                # Getting the obs count from the left and the right data splits
-                n_left = len(left_y)
-                n_right = len(right_y)
+                # Concatenating the residuals 
+                r = np.concatenate((res_left, res_right), axis=None)
 
-                # Calculating the weights for each of the nodes
-                w_left = n_left / (n_left + n_right)
-                w_right = n_right / (n_left + n_right)
-
-                # Calculating the weighted mse
-                wmse = w_left * left_mse + w_right * right_mse
-
-                # Calculating the mse gain 
-                msegain = mse_base - wmse
+                # Calculating the mse 
+                n = len(r)
+                r = r ** 2
+                r = np.sum(r)
+                mse_split = r / n
 
                 # Checking if this is the best split so far 
-                if msegain > max_gain:
+                if mse_split < mse_base:
                     best_feature = feature
                     best_value = value 
 
                     # Setting the best gain to the current one 
-                    max_gain = msegain
+                    mse_base = mse_split
 
         return (best_feature, best_value)
 
@@ -212,7 +210,7 @@ class NodeRegression():
             print(f"|{spaces} Split rule: {self.rule}")
         print(f"{' ' * const}   | MSE of the node: {round(self.mse, 2)}")
         print(f"{' ' * const}   | Count of observations in node: {self.n}")
-        print(f"{' ' * const}   | Prediction of node: {self.ymean}")   
+        print(f"{' ' * const}   | Prediction of node: {round(self.ymean, 3)}")   
 
     def print_tree(self):
         """
@@ -227,12 +225,19 @@ class NodeRegression():
             self.right.print_tree()
 
 if __name__ == '__main__':
-    # Reading data
-    d = pd.read_csv("data/regression/50_startups.csv")
+    d = pd.read_csv("data/regression/auto-mpg.csv")
+
+    # Subsetting
+    d = d[d['horsepower']!='?']
 
     # Constructing the X and Y matrices
-    X = d[['R&D Spend', 'Administration', 'Marketing Spend']]
-    Y = d['Profit'].values.tolist()
+    features = ['horsepower', 'weight', 'acceleration']
+
+    for ft in features:
+        d[ft] = pd.to_numeric(d[ft])
+
+    X = d[features]
+    Y = d['mpg'].values.tolist()
 
     # Initiating the Node
     root = NodeRegression(Y, X, max_depth=3, min_samples_split=3)
