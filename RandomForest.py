@@ -10,17 +10,14 @@ import numpy as np
 # Random selections
 import random 
 
-# Tree for classification
-from DecisionTree import Node
-
-# Tree for regression
-from RegressionDecisionTree import NodeRegression
-
 # Quick value count calculator
 from collections import Counter
 
 # Tree growth tracking 
 from tqdm import tqdm
+
+# Accuracy metrics 
+from sklearn.metrics import precision_score, recall_score
 
 
 class RandomForestTree():
@@ -299,7 +296,7 @@ class RandomForestTree():
             best_feature = cur_node.best_feature
             best_value = cur_node.best_value
 
-            if cur_node.n < cur_node.min_samples_split:
+            if (cur_node.n < cur_node.min_samples_split) | (best_feature is None):
                 break 
 
             if (values.get(best_feature) < best_value):
@@ -422,6 +419,56 @@ class RandomForestClassifier():
         # Saving the random forest list to memory
         self.random_forest = random_forest
 
+    def print_trees(self):
+        """
+        Method to print out all the grown trees in the classifier 
+        """
+        for i in range(self.n_trees):
+            print("------ \n")
+            print(f"Tree number: {i + 1} \n")
+            self.random_forest[i].print_tree()
+            print("------ \n")
+
+    def tree_predictions(self, X: pd.DataFrame) -> list:
+        """
+        Method to get the predictions from all the trees 
+        """
+        predictions = []
+        for i in range(self.n_trees):
+            yhat = self.random_forest[i].predict(X)
+            
+            # Apending to prediction placeholder
+            predictions.append(yhat)
+        
+        # Returning the prediction list 
+        return predictions
+    
+    def predict(self, X: pd.DataFrame) -> list:
+        """
+        Method to get the final prediction of the whole random forest 
+        """
+        # Getting the individual tree predictions
+        yhat = self.tree_predictions(X)
+
+        # Saving the number of obs in X 
+        n = X.shape[0]
+
+        # Getting the majority vote of each coordinate of the prediction list 
+        yhat_final = []
+
+        for i in range(n):
+            yhat_obs = [x[i] for x in yhat]
+
+            # Getting the most frequent entry 
+            counts = Counter(yhat_obs)
+            most_common = counts.most_common(1)[0][0]
+
+            # Appending the most common entry to final yhat list 
+            yhat_final.append(most_common)
+        
+        # Returning the final predictions 
+        return yhat_final
+
 if __name__ == '__main__':
     # Reading data for classification 
     d = pd.read_csv("data/random_forest/telecom_churn.csv")
@@ -432,8 +479,7 @@ if __name__ == '__main__':
         X=d.drop('Churn', axis=1),
         min_samples_split=10,
         max_depth=3,
-        X_features_fraction=0.25,
-        X_obs_fraction=0.75
+        X_features_fraction=0.25
     )
 
     # Growing the tree
@@ -448,10 +494,21 @@ if __name__ == '__main__':
         X=d.drop('Churn', axis=1),
         min_samples_split=10,
         max_depth=3,
-        n_trees=5,
+        n_trees=10,
         X_features_fraction=0.75,
         X_obs_fraction=0.75
         )
     
     # Growing the random forest 
     rf.grow_random_forest()
+
+    # Printing out the trees 
+    rf.print_trees()
+
+    # Making predictions
+    yhat = rf.predict(d.drop('Churn', axis=1))
+    d['yhat'] = yhat 
+
+    # Measurring accuracy
+    print(f"The training precision: {precision_score(d['Churn'], d['yhat'])}")
+    print(f"The training recall: {recall_score(d['Churn'], d['yhat'])}")

@@ -10,6 +10,9 @@ from RegressionDecisionTree import NodeRegression
 # Data reading 
 import pandas as pd  
 
+# Array math 
+import numpy as np
+
 # Reading the data 
 d = pd.read_csv("data/classification/train.csv")[['Age', 'Fare', 'Survived']].dropna()
 
