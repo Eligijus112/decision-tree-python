@@ -473,30 +473,25 @@ if __name__ == '__main__':
     # Reading data for classification 
     d = pd.read_csv("data/random_forest/telecom_churn.csv")
 
-    # Initiating one tree
-    tree = RandomForestTree(
-        Y=d['Churn'], 
-        X=d.drop('Churn', axis=1),
-        min_samples_split=10,
-        max_depth=3,
-        X_features_fraction=0.25
-    )
-
-    # Growing the tree
-    tree.grow_tree()
-
-    # Printing out the tree
-    tree.print_tree()
+    # Setting the features used 
+    features = [
+        'AccountWeeks',
+        'DataUsage',
+        'DayMins',
+        'DayCalls',
+        'MonthlyCharge',
+        'OverageFee',
+        'RoamMins'
+    ]
 
     # Initiating the random forest object 
     rf = RandomForestClassifier(
         Y=d['Churn'], 
-        X=d.drop('Churn', axis=1),
-        min_samples_split=10,
-        max_depth=3,
+        X=d[features],
+        min_samples_split=5,
+        max_depth=4,
         n_trees=10,
-        X_features_fraction=0.75,
-        X_obs_fraction=0.75
+        X_features_fraction=0.5
         )
     
     # Growing the random forest 
@@ -506,7 +501,7 @@ if __name__ == '__main__':
     rf.print_trees()
 
     # Making predictions
-    yhat = rf.predict(d.drop('Churn', axis=1))
+    yhat = rf.predict(d[features])
     d['yhat'] = yhat 
 
     # Measurring accuracy
