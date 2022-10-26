@@ -48,7 +48,7 @@ class Node:
         # Getting the GINI impurity based on the Y distribution
         self.gini_impurity = self.get_GINI()
 
-        # Sorting the counts and saving the final prediction of the node 
+        # Sorting the counts and saving the final prediction
         counts_sorted = list(sorted(self.counts.items(), key=lambda item: item[1]))
 
         # Getting the last item
